@@ -1,0 +1,358 @@
+/// \brief 检测装甲板
+/// \param src 原图
+/// \param bMode 二值方法
+/// \param data 装甲板信息
+/// \param offset 偏移
+//bool Detect::getArmorCenter(const Mat src, const int bMode, armorData &data, Point2f offset) {
+//
+//	/********************************* 二值化 ************************************/
+//	Mat binary;
+//	if (setBinary(src, binary, bMode) == false) return false;
+//	dilate(binary, binary, param.element);// 膨胀程度
+//	if (sParam.debug) imshow("binary", binary);
+//
+//	/******************************* 检测扇叶 *************************************/
+//	vector<vector<Point> > armorContours;
+//	vector<Vec4i> armorHierarchy;
+//	findContours(binary, armorContours, armorHierarchy, RETR_TREE, CHAIN_APPROX_NONE);
+//
+//	// 轮廓的数目
+//	size_t armorContours_size = armorContours.size();
+//
+//	if (armorContours_size == 0) {
+//		cout << "装甲板检测: 二值图没有轮廓" << endl;
+//		return false;
+//	}
+//
+//	// 统计每个轮廓的子轮廓的个数
+//	int *findCount=new int[armorContours_size];// 计数数组
+//	memset(findCount, 0, sizeof(findCount));
+//	for (size_t i = 0; i < armorContours_size; ++i) {
+//		// 选择有父轮廓的
+//		if (armorHierarchy[i][3] != -1) {// 可以尝试加入0个的
+//			// 去掉噪点
+//			if (contourArea(armorContours[i]) > param.noise_point_area) {
+//				findCount[armorHierarchy[i][3]]++;
+//			}
+//		}
+//	}
+//
+//	// 选择只有一个子轮廓的箭头,可能有多个
+//	vector<int> conIndexs;// 得到候选轮廓在binary检测出的contours的序号
+//	for (size_t i = 0; i < armorContours_size; ++i) {
+//		if (findCount[i] == 1) {
+//			RotatedRect rrect = minAreaRect(armorContours[i]);
+//
+//			// condition1: 长宽比  width > height
+//			float width = MAX(rrect.size.width, rrect.size.height);
+//			float height = MIN(rrect.size.width, rrect.size.height);
+//			float whrio = width / height;
+//			bool condition1 = whrio < param.flabellum_whrio_max && whrio > param.flabellum_whrio_min;
+//
+//			// condition2: 面积筛选
+//			float area = contourArea(armorContours[i]);
+//			bool condition2 = area > param.flabellum_area_min;//距离风车太远不识别
+//			if (condition1 && condition2) {
+//				conIndexs.push_back(i);
+//			}
+//		}
+//	}
+//	delete [] findCount;
+//
+//	if (conIndexs.size() == 0) {
+//		cout << "装甲板检测: 没有箭头" << endl;
+//		return false;
+//	}
+//
+//	// 第二次筛选,得到最后的箭头轮廓
+//	int index = NO_TARGET;// 最后的轮廓编号
+//	float min_score = MAX_NUM;
+//	for (size_t i = 0; i < conIndexs.size(); ++i) {
+//#ifdef GET_ROI
+//		// 扇叶截图
+//		Rect rect = boundingRect(armorContours[conIndexs[i]]);
+//		if (!makeRectSafe(rect, src.size())) continue;
+//		Mat roi = src(rect);
+//
+//		// 扇叶的最小外接矩形
+//		RotatedRect rrect = minAreaRect(armorContours[conIndexs[i]]);
+//		float rot_angle = 0;
+//		if (rrect.size.width > rrect.size.height) {
+//			rot_angle = 90 + rrect.angle;
+//			swap(rrect.size.width, rrect.size.height);
+//		}
+//		else {
+//			rot_angle = rrect.angle;
+//		}
+//		Point2f roi_center = Point2f(roi.cols / 2, roi.rows / 2);
+//
+//		// 旋转图形，使图片信息不丢失，得到
+//		Mat rot = getRotationMatrix2D(roi_center, rot_angle, 1);
+//		Rect2f bbox = RotatedRect(roi_center, roi.size(), rot_angle).boundingRect2f();
+//		rot.at<double>(0, 2) += bbox.width / 2.0 - roi.cols / 2.0;
+//		rot.at<double>(1, 2) += bbox.height / 2.0 - roi.rows / 2.0;
+//		Mat rot_roi;
+//		warpAffine(roi, rot_roi, rot, bbox.size());
+//
+//		// 扇叶中心旋转后的点
+//		Mat rrect_center_mat = (Mat_<double>(3, 1) << rrect.center.x - rect.tl().x,
+//			rrect.center.y - rect.tl().y,
+//			1);
+//		Mat rot_mat = rot * rrect_center_mat;
+//		Point2f rot_center = Point2f(rot_mat.at<double>(0, 0), rot_mat.at<double>(1, 0));
+//
+//		// 截取矫正的图形
+//		Mat dst;
+//		getRectSubPix(rot_roi, rrect.size, rot_center, dst);
+//
+//		Mat gray;
+//		cvtColor(dst, gray, COLOR_BGR2GRAY);
+//		static int number = 0;
+//		if (number < 2000) {
+//			char filename[100];
+//			sprintf(filename, "/home/chan/My_Git/lenet_image/positive_more/%d.jpg", number);
+//			imwrite(filename, gray);
+//			number++;
+//		}
+//#endif
+//		// 分类
+//		if (sParam.use_lenet) {
+//			// 扇叶截图
+//			Rect rect = boundingRect(armorContours[conIndexs[i]]);
+//			if (!makeRectSafe(rect, src.size())) continue;
+//			Mat roi = src(rect);
+//
+//			// 扇叶的最小外接矩形
+//			RotatedRect rrect = minAreaRect(armorContours[conIndexs[i]]);
+//			float rot_angle = 0;
+//			if (rrect.size.width > rrect.size.height) {
+//				rot_angle = 90 + rrect.angle;
+//				swap(rrect.size.width, rrect.size.height);
+//			}
+//			else {
+//				rot_angle = rrect.angle;
+//			}
+//			Point2f roi_center = Point2f(roi.cols / 2, roi.rows / 2);
+//
+//			// 旋转图形，使图片信息不丢失
+//			Mat rot = getRotationMatrix2D(roi_center, rot_angle, 1);
+//			Rect2f bbox = RotatedRect(roi_center, roi.size(), rot_angle).boundingRect2f();
+//			rot.at<double>(0, 2) += bbox.width / 2.0 - roi.cols / 2.0;
+//			rot.at<double>(1, 2) += bbox.height / 2.0 - roi.rows / 2.0;
+//			Mat rot_roi;
+//			warpAffine(roi, rot_roi, rot, bbox.size());
+//
+//			// 扇叶中心旋转后的点
+//			Mat rrect_center_mat = (Mat_<double>(3, 1) << rrect.center.x - rect.tl().x,
+//				rrect.center.y - rect.tl().y,
+//				1);
+//			Mat rot_mat = rot * rrect_center_mat;
+//			Point2f rot_center = Point2f(rot_mat.at<double>(0, 0), rot_mat.at<double>(1, 0));
+//
+//			// 截取矫正的图形
+//			Mat dst;
+//			getRectSubPix(rot_roi, rrect.size, rot_center, dst);
+//
+//			// lenet forward
+//			Mat gray_input;
+//			cvtColor(dst, gray_input, COLOR_BGR2GRAY);
+//			Mat inputBlob = dnn::blobFromImage(gray_input, 0.00390625f, Size(28, 28), Scalar(), false);
+//			lenet.setInput(inputBlob, "data");
+//			Mat prob = lenet.forward("prob");
+//			Mat probMat = prob.reshape(1, 1);
+//			int classId;
+//			double classProb;
+//			Point classNumber;
+//			minMaxLoc(probMat, nullptr, &classProb, nullptr, &classNumber);
+//			classId = classNumber.x;    // 类别：0是noise，1是true
+//			if (classId == 0) {
+//				cout << "noise" << endl;
+//				if (sParam.debug) imshow("noise", gray_input);
+//				continue;
+//			}
+//			else {
+//				if (sParam.debug) imshow("true", gray_input);
+//			}
+//		}
+//
+//		// 根据面积和长度计算分数
+//		float final_length = arcLength(armorContours[conIndexs[i]], true);//周长
+//		float fianl_area = contourArea(armorContours[conIndexs[i]]);//面积
+//		float score = fianl_area + final_length * 10;
+//
+//		if (score < min_score) {
+//			min_score = score;
+//			index = conIndexs[i];
+//		}
+//	}
+//
+//	if (index == NO_TARGET) {
+//		cout << "装甲板检测失败: 找不到箭头轮廓 " << endl;
+//		return false;
+//	}
+//
+//	/************************** 在最后箭头轮廓中找装甲板 ****************************/
+//	bool findFlag = false;
+//	Rect final_rect = boundingRect(armorContours[index]);
+//	if (!makeRectSafe(final_rect, src.size())) return false;
+//	Mat final_ROI = binary(final_rect);// 从二值图中截取
+//
+//	// 选择面积最大,得到rrect
+//	RotatedRect final_squa;
+//	float max_area = 0;
+//
+//	vector<vector<Point> > final_contours;
+//	vector<Vec4i> final_hierarchy;
+//	findContours(final_ROI, final_contours, final_hierarchy, RETR_TREE, CHAIN_APPROX_NONE, final_rect.tl());
+//	for (size_t i = 0; i < final_contours.size(); ++i) {
+//		if (final_hierarchy[i][3] != -1) {// 有父轮廓
+//			RotatedRect squa = minAreaRect(final_contours[i]);
+//
+//			// condition1: 长宽比
+//			float width = MAX(squa.size.width, squa.size.height);
+//			float height = MIN(squa.size.width, squa.size.height);
+//			float whrio = width / height;
+//			bool condition1 = whrio < param.armor_whrio_max && whrio > param.armor_whrio_min;
+//
+//			// condition2: 矩匹配:用外接矩形与轮廓匹配 用轮廓的外接矩阵四个角点的点集与轮廓点集进行匹配，以确定当前轮廓是一个矩形
+//			Point2f P[4];//存放边角四个点
+//			squa.points(P);
+//			vector<Point2f> P1;
+//			for (int i = 0; i < 4; i++) {
+//				P1.push_back(P[i]);
+//			}
+//			double rev = matchShapes(final_contours[i], P1, CONTOURS_MATCH_I1, 0.0);
+//			bool condition2 = rev < param.armor_rev_thres;
+//
+//			// condition3: 面积:最小面积
+//			float area = contourArea(final_contours[i]);
+//			bool condition3 = area > param.armor_area_min;
+//
+//			if (condition1 && condition2 && condition3) {
+//				if (sParam.debug) {
+//					for (int j = 0; j < 4; j++) {
+//						cv::line(debug_src, P[j] + Point2f(offset), P[(j + 1) % 4] + Point2f(offset), cv::Scalar(0, 255, 0), 3);
+//					}
+//				}
+//				if (area > max_area) {
+//					max_area = area;
+//					final_squa = squa;
+//					findFlag = true;
+//				}
+//			}
+//		}
+//	}
+//	if (findFlag == false) {
+//		cout << "装甲板检测失败: 旋转矩形检测失败" << endl;
+//		return false;
+//	}
+//
+//	/*********************************数据填充 ************************************/
+//
+//	// 装甲板中心
+//	data.armorCenter = final_squa.center + offset;
+//
+//	// 箭头中心
+//	RotatedRect final_rrect = minAreaRect(armorContours[index]);
+//	Point2f arrowCenter = final_rrect.center + offset;
+//
+//	float min = MIN(final_squa.size.height, final_squa.size.width);
+//	if (distance(arrowCenter, data.armorCenter) < min * 0.8) {
+//		data.isFind = false;
+//	}
+//	else {
+//		float tran_angle = 0.0;
+//		if (final_squa.size.width > final_squa.size.height) {
+//			tran_angle = 90 - fabs(final_squa.angle);//fabs为求浮点数的绝对值
+//		}
+//		else {
+//			tran_angle = fabs(final_squa.angle);
+//		}
+//		// 角度填充
+//		data.angle = tran_angle;
+//
+//		// 象限填充
+//		if (tran_angle < 20) {
+//			if (final_squa.size.width < final_squa.size.height
+//				&& arrowCenter.x < data.armorCenter.x) {
+//				data.quadrant = 1;
+//			}
+//			else if (final_squa.size.width > final_squa.size.height
+//				&& arrowCenter.x > data.armorCenter.x) {
+//				data.quadrant = 2;
+//			}
+//			else if (final_squa.size.width < final_squa.size.height
+//				&& arrowCenter.x > data.armorCenter.x) {
+//				data.quadrant = 3;
+//			}
+//			else if (final_squa.size.width > final_squa.size.height
+//				&& arrowCenter.x < data.armorCenter.x) {
+//				data.quadrant = 4;
+//			}
+//		}
+//		else if (tran_angle > 70) {
+//			if (final_squa.size.width < final_squa.size.height
+//				&& arrowCenter.y > data.armorCenter.y) {
+//				data.quadrant = 1;
+//			}
+//			else if (final_squa.size.width > final_squa.size.height
+//				&& arrowCenter.y > data.armorCenter.y) {
+//				data.quadrant = 2;
+//			}
+//			else if (final_squa.size.width < final_squa.size.height
+//				&& arrowCenter.y < data.armorCenter.y) {
+//				data.quadrant = 3;
+//			}
+//			else if (final_squa.size.width > final_squa.size.height
+//				&& arrowCenter.y < data.armorCenter.y) {
+//				data.quadrant = 4;
+//			}
+//		}
+//		else {
+//			if (arrowCenter.x < data.armorCenter.x && arrowCenter.y >= data.armorCenter.y
+//				&& final_squa.size.width < final_squa.size.height) {
+//				data.quadrant = 1;
+//			}
+//			else if (arrowCenter.x >= data.armorCenter.x && arrowCenter.y > data.armorCenter.y
+//				&& final_squa.size.width >= final_squa.size.height) {
+//				data.quadrant = 2;
+//			}
+//			else if (arrowCenter.x > data.armorCenter.x && arrowCenter.y <= data.armorCenter.y
+//				&& final_squa.size.width < final_squa.size.height) {
+//				data.quadrant = 3;
+//			}
+//			else if (arrowCenter.x <= data.armorCenter.x && arrowCenter.y < data.armorCenter.y
+//				&& final_squa.size.width >= final_squa.size.height) {
+//				data.quadrant = 4;
+//			}
+//		}
+//
+//		// 圆心填充
+//		if (data.quadrant == 1) {
+//			data.R_center.x = data.armorCenter.x - param.radius * cos(data.angle * CV_PI / 180);
+//			data.R_center.y = data.armorCenter.y + param.radius * sin(data.angle * CV_PI / 180);
+//		}
+//		else if (data.quadrant == 2) {
+//			data.R_center.x = data.armorCenter.x + param.radius * cos(data.angle * CV_PI / 180);
+//			data.R_center.y = data.armorCenter.y + param.radius * sin(data.angle * CV_PI / 180);
+//		}
+//		else if (data.quadrant == 3) {
+//			data.R_center.x = data.armorCenter.x + param.radius * cos(data.angle * CV_PI / 180);
+//			data.R_center.y = data.armorCenter.y - param.radius * sin(data.angle * CV_PI / 180);
+//		}
+//		else if (data.quadrant == 4) {
+//			data.R_center.x = data.armorCenter.x - param.radius * cos(data.angle * CV_PI / 180);
+//			data.R_center.y = data.armorCenter.y - param.radius * sin(data.angle * CV_PI / 180);
+//		}
+//		data.isFind = true;
+//	}
+//
+//
+//	if (sParam.debug) {
+//		circle(debug_src, data.armorCenter, 5, Scalar(255, 255, 255), 2);
+//		circle(debug_src, arrowCenter, 5, Scalar(120, 120, 125), 2);
+//		circle(debug_src, data.R_center, 5, Scalar(255, 255, 255), 2);
+//		circle(debug_src, data.R_center, distance(data.armorCenter, data.R_center), Scalar(0, 255, 0), 2);
+//	}
+//	return true;
+//}
